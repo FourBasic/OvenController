@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include "Thermocouple/Thermocouple.h"
 
-ThermoCouple tc;
+bool tc;
 
 void setup() {
 
