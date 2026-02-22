@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		},
+		{
+			"path": "../../DeviceInterface"
+		},
+		{
+			"path": "../../lib/AwfulPID"
+		}
+	],
+	"settings": {}
+}
