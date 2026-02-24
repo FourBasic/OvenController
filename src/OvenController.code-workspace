@@ -8,6 +8,9 @@
 		},
 		{
 			"path": "../../lib/AwfulPID"
+		},
+		{
+			"path": "../../lib/Timer"
 		}
 	],
 	"settings": {}
