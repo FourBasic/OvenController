@@ -11,6 +11,10 @@
 		},
 		{
 			"path": "../../lib/Timer"
+		},
+		{
+			"name": "Auto-Vacuum",
+			"path": "../../Auto-Vacuum"
 		}
 	],
 	"settings": {}
