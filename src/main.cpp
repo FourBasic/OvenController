@@ -52,7 +52,9 @@ Thermocouple tc;
 
 TimerOnDelay screenRefresh;
 MCUFRIEND_kbv tft;
-IntegerField field_sp {.prop={.pos={.x=0, .y=0}, .color=CYAN, .bg=BLACK, .font=3, .label="SP:", .labelColor=WHITE, .labelOffs=0, .unit="C", .padding = 5}, .val=0};
+IntegerField field_sp {.prop={.pos={.x=5, .y=5}, .color=CYAN, .bg=BLACK, .font=3, .label="SP:", .labelColor=WHITE, .labelOffs=0, .unit="C", .padding = 5}, .val=0};
+IntegerField field_temp {.prop={.pos={.x=5, .y=50}, .color=CYAN, .bg=BLACK, .font=3, .label="PV:", .labelColor=WHITE, .labelOffs=0, .unit="C", .padding = 5}, .val=0};
+IntegerField field_heat {.prop={.pos={.x=5, .y=100}, .color=CYAN, .bg=BLACK, .font=3, .label="OUT:", .labelColor=WHITE, .labelOffs=0, .unit="%", .padding = 5}, .val=0};
 
 // Configure PID for an output in seconds correlating to the duty cycle of the heater.
 // duty cycle of 0-100% * 10
@@ -61,7 +63,7 @@ AwfulPID pid;
 const PIDConfiguration pidCfg {2000, 0, 1000, false, 30, 5};
 const PIDParameters pidParam {1.0, 1.0, 0.0};
 DutyCycle dc;
-int temperatureSetpoint;
+int SP_temp;
 
 void initializeFieldProperties (struct FieldProperties* prop) {
   FieldPosition* pos = &prop->pos;
@@ -105,20 +107,25 @@ void setup() {
   tft.begin(tft.readID());
   tft.fillScreen(BLACK);
   initializeFieldProperties(&field_sp.prop);
-  delay(3000);
+  initializeFieldProperties(&field_temp.prop);
+  initializeFieldProperties(&field_heat.prop);
+  delay(1000);
 }
 
 void loop() {
-  temperatureSetpoint++; 
+  SP_temp = 62; 
 
+  long tcScaled;
+  tcScaled = map(1, 0, 1023, 0, 5000000);
   int uVolt;
+  uVolt = int(constrain(tcScaled, -32000,32000));
   //uVolt = map(analogRead(PIN_IN_THERMOCOUPLE), 0, 1023, 0, 5000000);
 
   int temp;    
   temp = tc.update(uVolt);
 
   float dutyCycle;
-  dutyCycle = float(pid.update(PID_ENABLE, temp, temperatureSetpoint) / 10);
+  dutyCycle = float(pid.update(PID_ENABLE, temp, SP_temp) / 10);
   bool heatCycle;
   heatCycle = dc.update(true, 60000, dutyCycle);
 
@@ -129,7 +136,9 @@ void loop() {
 
   //delay(200);
   if (screenRefresh.update(!screenRefresh.getTimerDone(), 500)) {
-    updateIntegerField(&field_sp, temperatureSetpoint);
+    updateIntegerField(&field_sp, SP_temp);
+    updateIntegerField(&field_temp, temp);
+    updateIntegerField(&field_heat, dutyCycle);
   }
 
 
