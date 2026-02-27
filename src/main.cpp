@@ -45,6 +45,7 @@ struct TextField {
 
 struct IntegerField {    
   FieldProperties prop;
+  int base;
   int val;
 };
 
@@ -52,9 +53,9 @@ Thermocouple tc;
 
 TimerOnDelay screenRefresh;
 MCUFRIEND_kbv tft;
-IntegerField field_sp {.prop={.pos={.x=5, .y=5}, .color=CYAN, .bg=BLACK, .font=3, .label="SP:", .labelColor=WHITE, .labelOffs=0, .unit="C", .padding = 5}, .val=0};
-IntegerField field_temp {.prop={.pos={.x=5, .y=50}, .color=CYAN, .bg=BLACK, .font=3, .label="PV:", .labelColor=WHITE, .labelOffs=0, .unit="C", .padding = 5}, .val=0};
-IntegerField field_heat {.prop={.pos={.x=5, .y=100}, .color=CYAN, .bg=BLACK, .font=3, .label="OUT:", .labelColor=WHITE, .labelOffs=0, .unit="%", .padding = 5}, .val=0};
+IntegerField field_sp {.prop={.pos={.x=5, .y=5}, .color=CYAN, .bg=BLACK, .font=3, .label="SP:", .labelColor=WHITE, .labelOffs=0, .unit="C", .padding = 5}, .base=1, .val=0};
+IntegerField field_temp {.prop={.pos={.x=5, .y=50}, .color=CYAN, .bg=BLACK, .font=3, .label="PV:", .labelColor=WHITE, .labelOffs=0, .unit="C", .padding = 5}, .base=10, .val=0};
+IntegerField field_heat {.prop={.pos={.x=5, .y=100}, .color=CYAN, .bg=BLACK, .font=3, .label="OUT:", .labelColor=WHITE, .labelOffs=0, .unit="%", .padding = 5}, .base=1, .val=0};
 
 // Configure PID for an output in seconds correlating to the duty cycle of the heater.
 // duty cycle of 0-100% * 10
@@ -86,10 +87,10 @@ void updateIntegerField(struct IntegerField* field, int val) {
   tft.setCursor(tft.getCursorX() + prop->padding, pos->y);
   tft.print(prop->unit);
   // Forground new value
-  field->val = val;
+  field->val = val / field->base;
   tft.setCursor(pX_val, pos->y);  
   tft.setTextColor(prop->color);
-  tft.print(val);
+  tft.print(field->val);
   tft.setTextColor(prop->labelColor);
   tft.setCursor(tft.getCursorX() + prop->padding, pos->y);
   tft.print(prop->unit);
