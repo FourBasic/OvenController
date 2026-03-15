@@ -5,6 +5,18 @@
 		},
 		{
 			"path": "../DeviceInterface"
+		},
+		{
+			"path": "../xOffline/TouchScreen_Whadda_vma412"
+		},
+		{
+			"path": "../lib/Timer"
+		},
+		{
+			"path": "../lib/AwfulPID"
+		},
+		{
+			"path": "../lib/GeneralFunctions"
 		}
 	],
 	"settings": {}
