@@ -6,9 +6,15 @@
 #include "Adafruit_GFX.h" 
 #include "Adafruit_TFTLCD.h"
 #include "MCUFRIEND_kbv.h"
+#include <TouchScreen.h>
 
 #define PIN_IN_RTD A5
 #define PIN_OUT_HEATER 13
+
+#define YP A3  
+#define XM A2
+#define YM 9   // can be a digital pin
+#define XP 8   // can be a digital pin
 
 #define LCD_CS A3 // Chip Select goes to Analog 3
 #define LCD_CD A2 // Command/Data goes to Analog 2
@@ -24,6 +30,15 @@
 #define MAGENTA 0xF81F
 #define YELLOW  0xFFE0
 #define WHITE   0xFFFF
+
+#define BOXSIZE 40
+#define PENRADIUS 3
+#define MINPRESSURE 10
+#define MAXPRESSURE 1000
+#define TS_MINX 100
+#define TS_MAXX 920
+#define TS_MINY 70
+#define TS_MAXY 900
 
 #define SCREEN_BOOT 1
 #define SCREEN_MAIN 2
@@ -60,6 +75,12 @@ struct FloatField {
   float val;
 };
 
+struct ButtonField {
+  FieldProperties prop;
+  FieldPosition size;
+  bool pressed;
+};
+
 Sensor555 rtd;
 TableDataPoint rtdLookupTable[8] 
 {{241,110},
@@ -73,6 +94,9 @@ TableDataPoint rtdLookupTable[8]
 
 TimerOnDelay screenRefresh;
 MCUFRIEND_kbv tft;
+TouchScreen ts = TouchScreen(XP, YP, XM, YM, 300);
+TSPoint p;
+bool screenPressed;
 // HMI
 int screen, screenLast;
 // Page 1 - Main
@@ -81,6 +105,8 @@ IntegerField field_temp {.prop={.pos={.x=5, .y=35}, .color=CYAN, .bg=BLACK, .fon
 FloatField field_heat {.prop={.pos={.x=5, .y=65}, .color=CYAN, .bg=BLACK, .font=3, .label="OUT:", .labelColor=WHITE, .labelOffs=0, .unit="%", .padding = 5}, .val=0};
 FloatField field_error {.prop={.pos={.x=5, .y=95}, .color=CYAN, .bg=BLACK, .font=3, .label="ERR:", .labelColor=WHITE, .labelOffs=0, .unit="C", .padding = 5}, .val=0};
 FloatField field_integral {.prop={.pos={.x=5, .y=125}, .color=CYAN, .bg=BLACK, .font=3, .label="ACC:", .labelColor=WHITE, .labelOffs=0, .unit="%", .padding = 5}, .val=0};
+ButtonField button_SPInc {.prop={.pos={.x=30, .y=200}, .color=WHITE, .bg=BLUE, .font=3, .label="-", .labelColor=WHITE, .labelOffs=0, .unit="", .padding = 5}, .size={.x=50, .y=50}, .pressed=false};
+ButtonField button_SPDec {.prop={.pos={.x=150, .y=200}, .color=WHITE, .bg=RED, .font=3, .label="-", .labelColor=WHITE, .labelOffs=0, .unit="", .padding = 5}, .size={.x=50, .y=50}, .pressed=false};
 
 // Configure PID for an output in seconds correlating to the duty cycle of the heater.
 // duty cycle of 0-100% * 10
@@ -102,6 +128,8 @@ DutyCycle dc;
 
 int SP_temp, temp, baseResponse, bias, pulseLength, dutyCycle;
 
+int oldcolor, currentcolor;
+
 void initializeFieldProperties (struct FieldProperties* prop) {
   FieldPosition* pos = &prop->pos;
   tft.setCursor(pos->x, pos->y); 
@@ -112,45 +140,69 @@ void initializeFieldProperties (struct FieldProperties* prop) {
 }
 
 void updateIntegerField(struct IntegerField* field, int val) {
-  FieldProperties* prop = &field->prop;
-  FieldPosition* pos = &prop->pos;
-  tft.setTextSize(prop->font);
-  int pX_val = pos->x + prop->labelOffs;
-  // Backgound previous value
-  tft.setCursor(pX_val, pos->y);  
-  tft.setTextColor(prop->bg);
-  tft.print(field->val);
-  tft.setCursor(tft.getCursorX() + prop->padding, pos->y);
-  tft.print(prop->unit);
-  // Forground new value
-  field->val = val / field->base;
-  tft.setCursor(pX_val, pos->y);  
-  tft.setTextColor(prop->color);
-  tft.print(field->val);
-  tft.setTextColor(prop->labelColor);
-  tft.setCursor(tft.getCursorX() + prop->padding, pos->y);
-  tft.print(prop->unit);
+  if (val != field->val) {
+    FieldProperties* prop = &field->prop;
+    FieldPosition* pos = &prop->pos;
+    tft.setTextSize(prop->font);
+    int pX_val = pos->x + prop->labelOffs;
+    // Backgound previous value
+    tft.setCursor(pX_val, pos->y);  
+    tft.setTextColor(prop->bg);
+    tft.print(field->val);
+    tft.setCursor(tft.getCursorX() + prop->padding, pos->y);
+    tft.print(prop->unit);
+    // Forground new value
+    field->val = val / field->base;
+    tft.setCursor(pX_val, pos->y);  
+    tft.setTextColor(prop->color);
+    tft.print(field->val);
+    tft.setTextColor(prop->labelColor);
+    tft.setCursor(tft.getCursorX() + prop->padding, pos->y);
+    tft.print(prop->unit);
+  }
 }
 
 void updateFloatField(struct FloatField* field, float val) {
+  if (val != field->val) {
+    FieldProperties* prop = &field->prop;
+    FieldPosition* pos = &prop->pos;
+    tft.setTextSize(prop->font);
+    int pX_val = pos->x + prop->labelOffs;
+    // Backgound previous value
+    tft.setCursor(pX_val, pos->y);  
+    tft.setTextColor(prop->bg);
+    tft.print(field->val);
+    tft.setCursor(tft.getCursorX() + prop->padding, pos->y);
+    tft.print(prop->unit);
+    // Forground new value
+    field->val = val;
+    tft.setCursor(pX_val, pos->y);  
+    tft.setTextColor(prop->color);
+    tft.print(field->val);
+    tft.setTextColor(prop->labelColor);
+    tft.setCursor(tft.getCursorX() + prop->padding, pos->y);
+    tft.print(prop->unit);
+  }
+}
+
+void updateButtonField(struct ButtonField* field, bool pressed, TSPoint p) {
   FieldProperties* prop = &field->prop;
   FieldPosition* pos = &prop->pos;
-  tft.setTextSize(prop->font);
-  int pX_val = pos->x + prop->labelOffs;
-  // Backgound previous value
-  tft.setCursor(pX_val, pos->y);  
-  tft.setTextColor(prop->bg);
-  tft.print(field->val);
-  tft.setCursor(tft.getCursorX() + prop->padding, pos->y);
-  tft.print(prop->unit);
-  // Forground new value
-  field->val = val;
-  tft.setCursor(pX_val, pos->y);  
-  tft.setTextColor(prop->color);
-  tft.print(field->val);
-  tft.setTextColor(prop->labelColor);
-  tft.setCursor(tft.getCursorX() + prop->padding, pos->y);
-  tft.print(prop->unit);
+  FieldPosition* size = &field->size;
+  tft.fillRect(pos->x, pos->y, size->x, size->y, prop->bg);
+  if (pressed) {
+    if (p.x > pos->x && p.x < (pos->x + size->x) && p.y > pos->y && p.y < (pos->y + size->y)) {
+      if (!field->pressed){
+        field->pressed = true;
+        SP_temp--;
+      }     
+    } else {
+      field->pressed = false;
+    }
+  } else {
+    field->pressed = false;
+    
+  }
 }
 
 void drawScreen(int screen) {
@@ -174,6 +226,8 @@ void drawScreen(int screen) {
       initializeFieldProperties(&field_heat.prop);
       initializeFieldProperties(&field_error.prop);
       initializeFieldProperties(&field_integral.prop);
+      initializeFieldProperties(&button_SPInc.prop);
+      initializeFieldProperties(&button_SPDec.prop);
       break;
     
     case SCREEN_SETTINGS:
@@ -184,7 +238,7 @@ void drawScreen(int screen) {
   }
 }
 
-void updateField(int screen) { 
+void updateField(int screen) {
   switch (screen) {
         case SCREEN_BOOT:
         break;
@@ -195,6 +249,8 @@ void updateField(int screen) {
           updateFloatField(&field_heat, dutyCycle);
           updateFloatField(&field_error, pid.getError());
           updateFloatField(&field_integral, pid.getIntegral());
+          updateButtonField(&button_SPInc, screenPressed, p);
+          updateButtonField(&button_SPDec, screenPressed, p);
           break;
         
         case SCREEN_SETTINGS:
@@ -206,7 +262,7 @@ void updateField(int screen) {
 }
 
 void refreshScreen() {
-  if (screenRefresh.update(!screenRefresh.getTimerDone(), 500)) {
+  if (screenRefresh.update(!screenRefresh.getTimerDone(), 20)) {
     if (screen != screenLast) {
       screenLast = screen;
       tft.fillScreen(BLACK);
@@ -249,14 +305,26 @@ void setup() {
   digitalWrite(PIN_OUT_HEATER, HIGH);
   pinMode(PIN_OUT_HEATER, OUTPUT);
 
+  //pinMode(13, OUTPUT);
+
   screen = SCREEN_BOOT;
   waitForBootComplete();
   screen = SCREEN_MAIN;
+
+  SP_temp = 50;
 }
     
 void loop() {
-  SP_temp = 70;
+  
 
+  p = ts.getPoint();
+  pinMode(XM, OUTPUT);
+  pinMode(YP, OUTPUT);
+  screenPressed = p.z > MINPRESSURE && p.z < MAXPRESSURE;
+ if (screenPressed) {    
+    p.x = map(p.x, TS_MINX, TS_MAXX, tft.width(), 0);
+    p.y = (tft.height()-map(p.y, TS_MINY, TS_MAXY, tft.height(), 0));       
+  }
   //long tcScaled;
   // Vin = (Vref(5V)/1024)*ADC(1023) = 4.995117V
   // Vin = (Vref(1.1V)/1024)*ADC(1023) = 1.098926V
@@ -284,8 +352,7 @@ void loop() {
   Serial.println("");
   */
   bool heatCycle = dc.update(true, 30000, dutyCycle);
-  digitalWrite(PIN_OUT_HEATER, !heatCycle);
-
+  //digitalWrite(PIN_OUT_HEATER, !heatCycle);
   refreshScreen();
 }
 
